@@ -1,0 +1,4 @@
+.ttt RichTextLabel {
+    theme_override_font_sizes/normal_font_size: 50;
+    theme_override_font_sizes/bold_font_size: 50;
+}
