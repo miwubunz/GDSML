@@ -1,3 +1,5 @@
+#pragma once
+
 #include <godot_cpp/godot.hpp>
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/classes/node.hpp>

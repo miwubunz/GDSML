@@ -1,4 +1,21 @@
-.ttt RichTextLabel {
-    theme_override_font_sizes/normal_font_size: 50;
-    theme_override_font_sizes/bold_font_size: 50;
+/*
+fun fact: 
+gdss stands for godot stylesheet! :D
+
+sad fact:
+the godot editor's gdss syntax highlighting is still growing up,
+thus it does not support multiline comments yet!
+owh~ :<
+
+but fear not, the upcoming vscode extension will! (i hope)
+*/
+
+.box VBoxContainer {
+	alignment: 1; // center
+	separation: 10;
+}
+
+.text_class RichTextLabel {
+	theme_override_font_sizes/normal_font_size: 30; // normal size
+	theme_override_font_sizes/bold_font_size: 30; // bold size
 }

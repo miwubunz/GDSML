@@ -10,32 +10,23 @@
 #include <godot_cpp/classes/reg_ex.hpp>
 #include <godot_cpp/classes/reg_ex_match.hpp>
 
+#include <godot_cpp/classes/editor_settings.hpp>
+
 
 using namespace godot;
 
 
 void GDSML::load_gdsml(String gdsml_path, Node *root) {
-    // check for style file
+    // check for style file (.gdss)
     Dictionary style;
     String ex = gdsml_path.get_extension();
     String dir = gdsml_path.replace(ex, "gdss");
 
     if (FileAccess::file_exists(dir)) {
-        //UtilityFunctions::print("style exists!!");
         style = parse_style(dir);
     }
 
     Dictionary classed;
-
-    /*
-    String base = gdsml_path.get_base_dir();
-    String file = gdsml_path.get_file();
-    String ex = gdsml_path.get_extension();
-    String nm = file.replace(ex, "");
-    String dir = (base.ends_with("/")) ? String("{0}{1}") : String("{0}/{1}");
-    dir = dir.format(Array::make(base, nm + "gdss"));
-    */
-
 
     XMLParser *parser = memnew(XMLParser);
     parser->open(gdsml_path);
@@ -50,7 +41,6 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
     Node *current_node = nullptr;
 
     while (parser->read() != ERR_FILE_EOF) {
-        //UtilityFunctions::print(stack);
         if (parser->get_current_line() < 1 && parser->get_node_type() == XMLParser::NODE_ELEMENT && parser->get_node_name() != "Scene") {
             UtilityFunctions::printerr("Error: GDSML scenes must be wrapped around a <Scene> tag. Ensure your root element is <Scene>.");
             memdelete(parser);
@@ -92,7 +82,6 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
 
                 if (!att_value) {
                     att_value = parser->get_attribute_value(i);
-                    //UtilityFunctions::printerr(String("variable '{0}' couldnt be recognised, using a string instead...").format(Array::make(att_value)));
                 }
 
                 if (node_.has_key(att_name)) {
@@ -114,8 +103,6 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
         } else if (parser->get_node_type() == XMLParser::NODE_TEXT) {
             if (current_node) {
                 Variant r = stack[stack.size() - 1];
-                //Variant temp = ClassDB::instantiate(cl);
-                //UtilityFunctions::print(temp);
 
                 if (r.has_key("text")) {
                     current_node->set("text", parser->get_node_data());
@@ -126,23 +113,22 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
                 stack.pop_back();
             }
         }
-    //UtilityFunctions::print(stack);
     }
     memdelete(parser);
 
     if (!classed.is_empty() && !style.is_empty()) {
         for (int i = 0; i < classed.size(); i++) {
             String current_class = classed[Array(classed.keys())[i]];
+
             if (style.has(current_class)) {
                 String id = Array(classed.keys())[i];
                 Ref<RegEx> regex = memnew(RegEx);
-                regex->compile(".+#(.+)>");
+                regex->compile(".+#(.+)>"); // get instance id
                 id = regex->sub(id, "$1", true);
 
                 Dictionary props = style[current_class].get("properties");
-
-                //UtilityFunctions::print(id);
                 Object *j = UtilityFunctions::instance_from_id(id.to_int());
+
                 for (int prop = 0; prop < props.size(); prop++) {
                     String property = Array(props.keys())[prop];
                     String value = UtilityFunctions::str_to_var(props[Array(props.keys())[prop]]);
@@ -152,33 +138,10 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
                         value = props[Array(props.keys())[prop]];
                     }
 
-                    //UtilityFunctions::print(Array::make(property, value));
-
                     j->set(property, value);
-
-                    //Variant k = ClassDB::instantiate(class_n);
-
-                    //UtilityFunctions::print(j->get_property_list()[0]);
-                    
-                    /*
-                    if () {
-                        UtilityFunctions::print(property);
-                    }
-                    */
-                }
-                //UtilityFunctions::print(j);
-            }
-        }
-
-        /*
-        for (int i = 0; i < classed.size(); i++) {
-            for (int j = 0; j < style.size(); j++) {
-                if (style[Array(style.keys())[j]] == classed[Array(classed.keys())[i]]) {
-                    UtilityFunctions::print(String("{0} matches class with {1}!!").format(Array::make(style[Array(style.keys())][j]), classed[Array(classed.keys())[i]]));
                 }
             }
         }
-        */
     }
 }
 
@@ -187,23 +150,35 @@ Dictionary GDSML::parse_style(String gdss_path) {
     Ref<FileAccess> file = FileAccess::open(gdss_path, FileAccess::READ);
     String content = file->get_as_text();
 
-    Ref<RegEx> regex = memnew(RegEx);
+    Ref<RegEx> comments = memnew(RegEx);
+
+    // multi-line comments (/* and */)
+    comments->compile("\\/\\*[\\s\\S]*?\\*\\/");
+    content = comments->sub(content, "", true);
+
+    // single-line comments (//)
+    comments->compile("\\/\\/(.+)");
+    content = comments->sub(content, "", true);
+
+    Ref<RegEx> regex = memnew(RegEx); // main regex
     regex->compile("\\.(\\w+)(?:\\s+(\\w+))?\\s*\\{([^}]+)\\}");
     TypedArray<RegExMatch> matches = regex->search_all(content);
     Dictionary parsed;
-    //String r = matches;
-    //PackedStringArray params = r.split(";");
+
     for (int i = 0; i < matches.size(); i++) {
         Ref<RegExMatch> m = matches[i];
         PackedStringArray r = m->get_strings();
         String class_name = r[1];
         String extending = r[2].strip_edges();
+
         if (extending.is_empty()) {
             UtilityFunctions::printerr(String("Error: Class '{0}' in the style file is missing a base node type. Every class must specify what it extends.").format(Array::make(class_name)));
             return Dictionary();
         }
+
         PackedStringArray properties = r[3].strip_edges().split(";");
         Dictionary props;
+
         for (String prop : properties) {
             if (prop.is_empty()) continue;
             PackedStringArray kv = prop.strip_edges().split(":");

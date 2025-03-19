@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GDSML" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		A Godot class that loads a GDSML [i](Godot Scene Markup Language)[/i] file as a scene.
+	</brief_description>
+	<description>
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="load_gdsml">
+			<return type="void" />
+			<param index="0" name="gdsml_path" type="String" />
+			<param index="1" name="root" type="Node" />
+			<description>
+				Loads a [b][code].gdsml[/code][/b] file and adds its nodes as children of the given [code]root[/code] node.
+				If a [code].gdss[/code] [i](Godot Stylesheet)[/i] file with the same name exists in the same directory, its styles will be loaded automatically.
+				[codeblock]
+				# Given the following file structure:
+				# ┖ res
+				#     ┠ test.gdsml
+				#     ┖ test.gdss
+				[/codeblock]
+				[codeblock]
+				var gdsml = GDSML.new()
+				gdsml.load_gdsml("res://test.gdsml", self)
+				# will load test.gdsml and set the styles on test.gdss
+				[/codeblock]
+			</description>
+		</method>
+	</methods>
+</class>

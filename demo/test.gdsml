@@ -1,8 +1,9 @@
 <Scene>
-    <VBoxContainer>
-    <RichTextLabel bbcode_enabled="true" fit_content="true" autowrap_mode="TextServer.AUTOWRAP_OFF" class="ttt">
-        this is a [wave][b]GDSML[/b][/wave] test! -w-
-    </RichTextLabel>
-    <Button>test!! :D</Button>
-    </VBoxContainer>
+	<!-- wrap your content inside a container for a comfier experience!! <3 -->
+	<VBoxContainer class="box">
+		<RichTextLabel bbcode_enabled="true" fit_content="true" autowrap_mode="TextServer.AUTOWRAP_OFF" class="text_class">
+			[center]this is a [wave][b]GDSML[/b][/wave] test! -w-[/center]
+		</RichTextLabel>
+		<Button>test!! :D </Button>
+	</VBoxContainer>
 </Scene>
