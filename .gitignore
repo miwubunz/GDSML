@@ -1,6 +1,7 @@
 /bin/
 /build/
 /__pycache__/
+/.vscode/
 
 # Ignore CMake-generated files
 CMakeCache.txt

@@ -1,23 +1,23 @@
 #include "gdsml.h"
-#include <godot_cpp/godot.hpp>
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/xml_parser.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/node.hpp>
-#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/reg_ex.hpp>
 #include <godot_cpp/classes/reg_ex_match.hpp>
-
-#include <godot_cpp/classes/editor_settings.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/script.hpp>
 
 
 using namespace godot;
 
 
+// parse and show .gdsml files
 void GDSML::load_gdsml(String gdsml_path, Node *root) {
-    // check for style file (.gdss)
+    // check for style file (.gdss) (OLD)
+    /*
     Dictionary style;
     String ex = gdsml_path.get_extension();
     String dir = gdsml_path.replace(ex, "gdss");
@@ -25,11 +25,22 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
     if (FileAccess::file_exists(dir)) {
         style = parse_style(dir);
     }
+    */
+
+    Dictionary style;
+
+    if (!FileAccess::file_exists(gdsml_path)) {
+        UtilityFunctions::printerr(String("File '{0}' does not exist.").format(Array::make(gdsml_path)));
+        return;
+    }
 
     Dictionary classed;
 
     XMLParser *parser = memnew(XMLParser);
-    parser->open(gdsml_path);
+    if (parser->open(gdsml_path) != OK) {
+        memdelete(parser);
+        return;
+    }
 
     PackedStringArray built_in = {
         "Scene",
@@ -38,19 +49,35 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
     Array stack = {};
     stack.append(root);
 
+    int index = 0;
+
     Node *current_node = nullptr;
 
     while (parser->read() != ERR_FILE_EOF) {
-        if (parser->get_current_line() < 1 && parser->get_node_type() == XMLParser::NODE_ELEMENT && parser->get_node_name() != "Scene") {
-            UtilityFunctions::printerr("Error: GDSML scenes must be wrapped around a <Scene> tag. Ensure your root element is <Scene>.");
+        if (index < 1 && parser->get_node_type() == XMLParser::NODE_ELEMENT && parser->get_node_name() != "Scene") {
+            UtilityFunctions::printerr("GDSML scenes must be wrapped around a <Scene> tag. Ensure your root element is <Scene>.");
             memdelete(parser);
             return;
         }
 
         if (parser->get_node_type() == XMLParser::NODE_ELEMENT) {
+            index++;
             String name = parser->get_node_name();
             
             if (built_in.has(name)) {
+                if (name == "Scene") {
+                    for (int i = 0; i < parser->get_attribute_count(); i++) {
+                        String att_name = parser->get_attribute_name(i);
+                        if (att_name == "style") {
+                            String style_path = parser->get_attribute_value(i);
+                            if (FileAccess::file_exists(style_path)) {
+                                style = parse_style(style_path);
+                            } else {
+                                UtilityFunctions::printerr(String("Style file '{0}' does not exist.").format(Array::make(style_path)));
+                            }
+                        }
+                    }
+                }
                 continue;
             }
 
@@ -70,11 +97,24 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
 
                     if (!style.is_empty() && style.has(cl)) {
                         if (style[cl].get("extends") != current_class) {
-                            UtilityFunctions::printerr(String("Error: Node of type '{0}' cannot have class '{1}' as it extends a different base class.").format(Array::make(current_class, style[cl].get("extends"))));
+                            UtilityFunctions::printerr(String("Node of type '{0}' cannot have class '{1}' as it extends a different base class.").format(Array::make(current_class, style[cl].get("extends"))));
                         }
                     }
 
                     classed[current_node] = cl;
+                    continue;
+                } else if (att_name == "script") {
+                    String script = parser->get_attribute_value(i);
+                    if (!FileAccess::file_exists(script)) {
+                        UtilityFunctions::printerr(String("Script file '{0}' was not found. Is the path correct?").format(Array::make(script)));
+                        continue;
+                    }
+                    Ref<Resource> scr = ResourceLoader::get_singleton()->load(script);
+                    if (scr == nullptr) {
+                        UtilityFunctions::printerr(String("Script '{0}' does not exist. Is the path correct?").format(Array::make(script)));
+                        continue;
+                    }
+                    current_node->set_script(scr);
                     continue;
                 }
 
@@ -131,7 +171,7 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
 
                 for (int prop = 0; prop < props.size(); prop++) {
                     String property = Array(props.keys())[prop];
-                    String value = UtilityFunctions::str_to_var(props[Array(props.keys())[prop]]);
+                    Variant value = UtilityFunctions::str_to_var(props[Array(props.keys())[prop]]);
                     String class_n = j->get_class();
 
                     if (!value) {
@@ -146,6 +186,7 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
 }
 
 
+// parse .gdss (godot stylesheet)
 Dictionary GDSML::parse_style(String gdss_path) {
     Ref<FileAccess> file = FileAccess::open(gdss_path, FileAccess::READ);
     String content = file->get_as_text();
@@ -172,7 +213,7 @@ Dictionary GDSML::parse_style(String gdss_path) {
         String extending = r[2].strip_edges();
 
         if (extending.is_empty()) {
-            UtilityFunctions::printerr(String("Error: Class '{0}' in the style file is missing a base node type. Every class must specify what it extends.").format(Array::make(class_name)));
+            UtilityFunctions::printerr(String("Class '{0}' in the style file is missing a base node type. Every class must specify what it extends.").format(Array::make(class_name)));
             return Dictionary();
         }
 
@@ -184,6 +225,7 @@ Dictionary GDSML::parse_style(String gdss_path) {
             PackedStringArray kv = prop.strip_edges().split(":");
             String property = kv[0].strip_edges();
             String value = kv[kv.size() - 1].strip_edges();
+
             props[property] = value;
         }
 

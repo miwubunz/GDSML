@@ -1,9 +1,10 @@
-<Scene>
+<Scene style="test.gdss">
 	<!-- wrap your content inside a container for a comfier experience!! <3 -->
 	<VBoxContainer class="box">
 		<RichTextLabel bbcode_enabled="true" fit_content="true" autowrap_mode="TextServer.AUTOWRAP_OFF" class="text_class">
 			[center]this is a [wave][b]GDSML[/b][/wave] test! -w-[/center]
 		</RichTextLabel>
-		<Button>test!! :D </Button>
+		<Button script="button.gd">test :3</Button>
+		<TextEdit class="edit" placeholder_text="type here..." custom_minimum_size="Vector2(200,200)"/>
 	</VBoxContainer>
 </Scene>

@@ -4,6 +4,38 @@
 		A Godot class that loads a GDSML [i](Godot Scene Markup Language)[/i] file as a scene.
 	</brief_description>
 	<description>
+		Each scene must start [b][i]and[/i][/b] end with a [code]&lt;Scene&gt;[/code] tag.
+		[codeblock lang=text]
+		&lt;Scene&gt;
+		    &lt;Label&gt;Hello, World!&lt;/Label&gt;
+		&lt;/Scene&gt;
+		[/codeblock]
+		Comments are allowed and must follow the [code]&lt;!--[/code] and [code]--&gt;[/code] format.
+		[codeblock lang=text]
+		&lt;!-- This is a comment --&gt;
+		[/codeblock]
+		A node's properties can be set with attributes.
+		[codeblock lang=text]
+		&lt;ColorRect size="Vector2i(500, 500)" /&gt;
+		[/codeblock]
+		Styles can be added to a [code]&lt;Scene&gt;[/code] tag with the attribute [code]style[/code].
+		Styles need to be a valid [code]GDSS[/code] [i](Godot Stylesheet)[/i] file.
+		[codeblock lang=text]
+		&lt;Scene style="res://style.gdss"&gt;
+		[/codeblock]
+		a [b]GDSS[/b] class must start with a dot [code].[/code], followed by the [b][i]class name[/i][/b], the [b][i]base node type[/i][/b] and the [b][i]properties[/i][/b] wrapped on curly braces.
+		[b]GDSS[/b] supports [b][i]single line commments[/i][/b] and [b][i]multi line comments[/i][/b].
+		Example:
+		[codeblock lang=text]
+		.text_class RichTextLabel {
+		    theme_override_font_sizes/normal_font_size: 50; // normal font size
+		    theme_override_colors/default_color: Color(1,0.9,1,1); // slightly pinkish white
+		}
+		[/codeblock]
+		You can attach a script to a node with the attribute [code]script[/code].
+		[codeblock lang=text]
+		&lt;Label script="res://label.gd" /&gt;
+		[/codeblock]
 	</description>
 	<tutorials>
 	</tutorials>
@@ -14,18 +46,25 @@
 			<param index="1" name="root" type="Node" />
 			<description>
 				Loads a [b][code].gdsml[/code][/b] file and adds its nodes as children of the given [code]root[/code] node.
-				If a [code].gdss[/code] [i](Godot Stylesheet)[/i] file with the same name exists in the same directory, its styles will be loaded automatically.
 				[codeblock]
 				# Given the following file structure:
 				# ┖ res
-				#     ┠ test.gdsml
-				#     ┖ test.gdss
+				#     ┖ test.gdsml
 				[/codeblock]
-				[codeblock]
+				[codeblocks]
+				[gdscript]
 				var gdsml = GDSML.new()
 				gdsml.load_gdsml("res://test.gdsml", self)
-				# will load test.gdsml and set the styles on test.gdss
-				[/codeblock]
+				# will load test.gdsml
+				[/gdscript]
+				[csharp]
+				Variant temp = ClassDB.Instantiate("GDSML");
+				GodotObject gdsml = temp.AsGodotObject();
+
+				gdsml.Call("load_gdsml", "test.gdsml", this);
+				// will load test.gdsml
+				[/csharp]
+				[/codeblocks]
 			</description>
 		</method>
 	</methods>
