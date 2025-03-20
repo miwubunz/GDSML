@@ -9,6 +9,7 @@
 #include <godot_cpp/classes/reg_ex_match.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/script.hpp>
+#include <godot_cpp/classes/gd_script.hpp>
 
 
 using namespace godot;
@@ -16,16 +17,9 @@ using namespace godot;
 
 // parse and show .gdsml files
 void GDSML::load_gdsml(String gdsml_path, Node *root) {
-    // check for style file (.gdss) (OLD)
-    /*
-    Dictionary style;
-    String ex = gdsml_path.get_extension();
-    String dir = gdsml_path.replace(ex, "gdss");
-
-    if (FileAccess::file_exists(dir)) {
-        style = parse_style(dir);
-    }
-    */
+    bool has_script = false;
+    bool script_loaded = false;
+    bool on_scene = false;
 
     Dictionary style;
 
@@ -44,8 +38,10 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
 
     PackedStringArray built_in = {
         "Scene",
+        "Script"
     };
 
+    Array signals = {};
     Array stack = {};
     stack.append(root);
 
@@ -54,18 +50,13 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
     Node *current_node = nullptr;
 
     while (parser->read() != ERR_FILE_EOF) {
-        if (index < 1 && parser->get_node_type() == XMLParser::NODE_ELEMENT && parser->get_node_name() != "Scene") {
-            UtilityFunctions::printerr("GDSML scenes must be wrapped around a <Scene> tag. Ensure your root element is <Scene>.");
-            memdelete(parser);
-            return;
-        }
-
         if (parser->get_node_type() == XMLParser::NODE_ELEMENT) {
             index++;
             String name = parser->get_node_name();
             
             if (built_in.has(name)) {
                 if (name == "Scene") {
+                    on_scene = true;
                     for (int i = 0; i < parser->get_attribute_count(); i++) {
                         String att_name = parser->get_attribute_name(i);
                         if (att_name == "style") {
@@ -77,70 +68,133 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
                             }
                         }
                     }
+                } else if (parser->get_node_name() == "Script") {
+                    if (!has_script) {
+                        has_script = true;
+                    } else {
+                        UtilityFunctions::printerr("Only one script tag can be present per GDSML scene file.");
+                    }
                 }
                 continue;
             }
 
-            Variant node_ = ClassDB::instantiate(name);
-            current_node = Object::cast_to<Node>(node_);
-
-            if (!current_node) {
-                continue;
-            }
-
-            for (int i = 0; i < parser->get_attribute_count(); i++) {
-                String att_name = parser->get_attribute_name(i);
-
-                if (att_name == "class") {
-                    String cl = parser->get_attribute_value(i);
-                    String current_class = current_node->get_class();
-
-                    if (!style.is_empty() && style.has(cl)) {
-                        if (style[cl].get("extends") != current_class) {
-                            UtilityFunctions::printerr(String("Node of type '{0}' cannot have class '{1}' as it extends a different base class.").format(Array::make(current_class, style[cl].get("extends"))));
+            if (on_scene) {
+                Variant node_ = ClassDB::instantiate(name);
+                current_node = Object::cast_to<Node>(node_);
+    
+                if (!current_node) {
+                    continue;
+                }
+    
+                for (int i = 0; i < parser->get_attribute_count(); i++) {
+                    String att_name = parser->get_attribute_name(i);
+    
+                    if (att_name == "class") {
+                        String cl = parser->get_attribute_value(i);
+                        String current_class = current_node->get_class();
+    
+                        if (!style.is_empty() && style.has(cl)) {
+                            if (style[cl].get("extends") != current_class) {
+                                UtilityFunctions::printerr(String("Node of type '{0}' cannot have class '{1}' as it extends a different base class.").format(Array::make(current_class, style[cl].get("extends"))));
+                            }
                         }
-                    }
+    
+                        classed[current_node] = cl;
+                        continue;
+                    } else if (att_name == "script") {
+                        String script = parser->get_attribute_value(i);
+                        
+                        if (!FileAccess::file_exists(script)) {
+                            UtilityFunctions::printerr(String("Script file '{0}' was not found. Is the path correct?").format(Array::make(script)));
+                            continue;
+                        }
 
-                    classed[current_node] = cl;
-                    continue;
-                } else if (att_name == "script") {
-                    String script = parser->get_attribute_value(i);
-                    if (!FileAccess::file_exists(script)) {
-                        UtilityFunctions::printerr(String("Script file '{0}' was not found. Is the path correct?").format(Array::make(script)));
+                        Ref<Resource> scr = ResourceLoader::get_singleton()->load(script);
+
+                        if (scr == nullptr) {
+                            UtilityFunctions::printerr(String("Script '{0}' does not exist. Is the path correct?").format(Array::make(script)));
+                            continue;
+                        }
+
+                        current_node->set_script(scr);
+                        continue;
+                    } else if (att_name == "signal") {
+                        String signal_str = parser->get_attribute_value(i);
+                        PackedStringArray signal_parts = signal_str.split("=>");
+                    
+                        String signal_name = signal_parts[0].strip_edges();
+                        PackedStringArray method_parts = signal_parts[1].split(":");
+                        
+                        if (method_parts.size() < 1) {
+                            UtilityFunctions::printerr(String("Missing method name in signal: '{0}'").format(Array::make(signal_str)));
+                            continue;
+                        }
+                    
+                        String method_name = method_parts[0].strip_edges();
+                        PackedStringArray arg_strings = method_parts.slice(1);
+                    
+                        Array arguments;
+                        for (int j = 0; j < arg_strings.size(); j++) {
+                            String arg_str = arg_strings[j].strip_edges();
+                            Variant arg = UtilityFunctions::str_to_var(arg_str);
+                            if (!arg) {
+                                arg = arg_str;
+                            }
+                            arguments.append(arg);
+                        }
+                    
+                        Dictionary signal_info;
+                        signal_info["emitter"] = current_node;
+                        signal_info["signal_name"] = signal_name;
+                        signal_info["method_name"] = method_name;
+                        signal_info["arguments"] = arguments;
+
+                        //UtilityFunctions::print(arg_strings);
+                        //UtilityFunctions::print(arguments);
+                    
+                        signals.append(signal_info);
+
                         continue;
                     }
-                    Ref<Resource> scr = ResourceLoader::get_singleton()->load(script);
-                    if (scr == nullptr) {
-                        UtilityFunctions::printerr(String("Script '{0}' does not exist. Is the path correct?").format(Array::make(script)));
-                        continue;
+
+                    if (node_.has_key(att_name)) {
+                        Variant::Type type = ClassDB::class_get_property(node_, att_name).get_type();
+                        Variant att_value = parser->get_attribute_value(i);
+
+                        if (type != Variant::STRING) {
+                            att_value = UtilityFunctions::str_to_var(parser->get_attribute_value(i));
+    
+                            if (!att_value) {
+                                att_value = parser->get_attribute_value(i);
+                            }
+                        }
+
+                        current_node->set(att_name, att_value);
+                    } else {
+                        UtilityFunctions::printerr(String("{0} does not have property '{1}'").format(Array::make(node_, att_name)));
                     }
-                    current_node->set_script(scr);
-                    continue;
                 }
-
-                Variant att_value = UtilityFunctions::str_to_var(parser->get_attribute_value(i));
-
-                if (!att_value) {
-                    att_value = parser->get_attribute_value(i);
+    
+                if (!stack.is_empty()) {
+                    Node *parent = Object::cast_to<Node>(stack[stack.size() - 1]);
+    
+                    if (parent) {
+                        parent->add_child(current_node);
+                    }
                 }
-
-                if (node_.has_key(att_name)) {
-                    current_node->set(att_name, att_value);
-                } else {
-                    UtilityFunctions::printerr(String("{0} does not have property '{1}'").format(Array::make(node_, att_name)));
-                }
+    
+                stack.append(node_);
             }
-
-            if (!stack.is_empty()) {
-                Node *parent = Object::cast_to<Node>(stack[stack.size() - 1]);
-
-                if (parent) {
-                    parent->add_child(current_node);
-                }
-            }
-
-            stack.append(node_);
         } else if (parser->get_node_type() == XMLParser::NODE_TEXT) {
+            if (has_script && !script_loaded) {
+                String source_code = parser->get_node_data().dedent();
+                Ref<GDScript> script = script_instance(source_code);
+                if (script.is_valid()) {
+                    root->set_script(script);
+                }
+                script_loaded = true;
+            }
+
             if (current_node) {
                 Variant r = stack[stack.size() - 1];
 
@@ -149,6 +203,10 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
                 }
             }
         } else if (parser->get_node_type() == XMLParser::NODE_ELEMENT_END) {
+            if (parser->get_node_name() == "Scene") {
+                on_scene = false;
+            }
+
             if (stack.size() > 1) {
                 stack.pop_back();
             }
@@ -179,6 +237,36 @@ void GDSML::load_gdsml(String gdsml_path, Node *root) {
                     }
 
                     j->set(property, value);
+                }
+            }
+        }
+    }
+
+    if (!signals.is_empty()) {
+        if (has_script) {
+            for (int i = 0; i < signals.size(); i++) {
+                Dictionary signal_info = signals[i];
+                Node *emitter = Object::cast_to<Node>(signal_info["emitter"]);
+                String signal_name = signal_info["signal_name"];
+                String method_name = signal_info["method_name"];
+                Array arguments = signal_info["arguments"];
+    
+                if (!emitter) {
+                    UtilityFunctions::printerr("Invalid emitter.");
+                    continue;
+                }
+
+                for (int i = 0; i < arguments.size(); i++) {
+                    if (arguments[i] == "self") {
+                        arguments[i] = emitter;
+                    }
+                }
+
+                Callable callable = (arguments.is_empty()) ? Callable(root, method_name) : Callable(root, method_name).bindv(arguments);
+
+                Error err = emitter->connect(signal_name, callable);
+                if (err != OK) {
+                    UtilityFunctions::printerr(String("Failed to connect signal '{0}' to '{1}'.").format(Array::make(signal_name, method_name)));
                 }
             }
         }
@@ -237,6 +325,19 @@ Dictionary GDSML::parse_style(String gdss_path) {
     }
 
     return parsed;
+}
+
+
+Ref<GDScript> GDSML::script_instance(String source_code) {
+    Ref<GDScript> script = memnew(GDScript);
+    script->set_source_code(source_code);
+
+    if (script->reload() != OK) {
+        UtilityFunctions::printerr("Failed to compile script.");
+        return Ref<GDScript>();
+    }
+
+    return script;
 }
 
 

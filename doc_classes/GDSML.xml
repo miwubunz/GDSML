@@ -5,6 +5,7 @@
 	</brief_description>
 	<description>
 		Each scene must start [b][i]and[/i][/b] end with a [code]&lt;Scene&gt;[/code] tag.
+		Nodes outside of a [code]&lt;Scene&gt;[/code] tag will be ignored.
 		[codeblock lang=text]
 		&lt;Scene&gt;
 		    &lt;Label&gt;Hello, World!&lt;/Label&gt;
@@ -35,6 +36,22 @@
 		You can attach a script to a node with the attribute [code]script[/code].
 		[codeblock lang=text]
 		&lt;Label script="res://label.gd" /&gt;
+		[/codeblock]
+		Signals can be connected with the [code]signal[/code] attribute.
+		Every signal must have a [b][i]signal name[/i][/b] and a [b][i]method name[/i][/b] to connect to divided by [code]=&gt;[/code].
+		You can add arguments by splitting them with colons.
+		[code]self[/code] keyword passes the node as an argument.
+		[codeblock lang=text]
+		&lt;Button signal="pressed =&gt; button_pressed : self" /&gt;
+		[/codeblock]
+		You can add scripts to the [b]GDSML[/b] file by using the [code]&lt;Script&gt;[/code] tag.
+		[codeblock lang=text]
+		&lt;Script&gt;
+		    extends Node
+
+		    func _ready():
+		        print("Hello, World!")
+		&lt;/Script&gt;
 		[/codeblock]
 	</description>
 	<tutorials>
